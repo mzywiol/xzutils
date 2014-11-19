@@ -1,8 +1,9 @@
 package xz.util.calc;
 
-/**
- * Created by eXistenZ on 19.11.14.
- */
 public class Calc
 {
+   public static int calculate(String formula)
+   {
+      return 0;
+   }
 }
