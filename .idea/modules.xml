@@ -2,7 +2,6 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/xzgit.iml" filepath="$PROJECT_DIR$/xzgit.iml" />
       <module fileurl="file://$PROJECT_DIR$/xzutils/xzutils.iml" filepath="$PROJECT_DIR$/xzutils/xzutils.iml" />
     </modules>
   </component>
