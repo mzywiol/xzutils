@@ -6,12 +6,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class Calc
 {
+    private final Pattern INNERMOST_PARENTHESIS_PATTERN = Pattern.compile("\\([^()]*\\)");
     private final String OPERATORS_PATTERN;
     private final String OPERATORS_DELIMITER;
     private final Map<String, Operator> operators = new HashMap<>();
@@ -20,33 +20,33 @@ public class Calc
     private final Operator ADD = new Operator("+", 1)
     {
         @Override
-        public int perform(int leftOperand, int rightOperand)
+        public int perform(int... ops)
         {
-            return leftOperand + rightOperand;
+            return ops[0] + ops[1];
         }
     };
     private final Operator SUBTRACT = new Operator("-", 1, true)
     {
         @Override
-        public int perform(int leftOperand, int rightOperand)
+        public int perform(int... ops)
         {
-            return leftOperand - rightOperand;
+            return ops[0] - ops[1];
         }
     };
     private final Operator MULTIPLY = new Operator("*", 2)
     {
         @Override
-        public int perform(int leftOperand, int rightOperand)
+        public int perform(int... ops)
         {
-            return leftOperand * rightOperand;
+            return ops[0] * ops[1];
         }
     };
     private final Operator DIVIDE = new Operator("/", 2)
     {
         @Override
-        public int perform(int leftOperand, int rightOperand)
+        public int perform(int... ops)
         {
-            return leftOperand / rightOperand;
+            return ops[0] / ops[1];
         }
     };
 
@@ -55,10 +55,27 @@ public class Calc
         if (formula == null)
             throw new IllegalArgumentException();
 
-        List<String> tokens = Arrays.asList(splitFormula(formula)).stream()
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .collect(Collectors.toList());
+        Matcher parenthesisMatcher = INNERMOST_PARENTHESIS_PATTERN.matcher(formula);
+        while (parenthesisMatcher.find())
+        {
+            String parenthesis = parenthesisMatcher.group();
+
+            formula = formula.substring(0, parenthesisMatcher.start())
+                    + Integer.toString(compute(parenthesis.substring(1, parenthesis.length() - 1)))
+                    + formula.substring(parenthesisMatcher.end());
+
+            parenthesisMatcher.reset(formula);
+        }
+
+        List<Object> tokens;
+        try
+        {
+            tokens = splitFormula(formula);
+        }
+        catch (NumberFormatException e)
+        {
+            throw new FormulaParseException("Invalid value.", e);
+        }
 
         try
         {
@@ -75,37 +92,48 @@ public class Calc
         if (tokens.size() > 1)
             throw new FormulaParseException("More than one value left after processing formula.");
 
-        return tokens.size() == 0 ? 0 : parseValue(getToken(tokens, 0));
+        return tokens.size() == 0 ? 0 : (int) tokens.get(0);
     }
 
-    private List<String> performOperationsWithPriority(List<String> tokens, int priority)
+    private List<Object> performOperationsWithPriority(List<Object> tokens, int priority)
     {
-        int leftOpIdx = 0;
+        int opIdx = 0;
 
         while (true)
         {
-            int opIdx = leftOpIdx + 1;
-            int rightOpIdx = leftOpIdx + 2;
-
-            if (rightOpIdx > tokens.size())
+            if (opIdx >= tokens.size())
                 break;
 
-            Operator op = parseOperator(tokens, leftOpIdx);
-            if (op != null && op.isUnary())
+            Object currentToken = tokens.get(opIdx);
+            if (!isOperator(currentToken))
             {
-                tokens.set(1, getToken(tokens, leftOpIdx) + getToken(tokens, opIdx));
-                tokens = remainder(tokens, opIdx);
-            }
-            int leftOperand = parseValue(getToken(tokens, leftOpIdx));
-            op = parseOperator(tokens, opIdx);
-            if (op.getPriority() != priority)
-            {
-                leftOpIdx += 2;
+                opIdx++;
                 continue;
             }
-            int rightOperand = parseValue(getToken(tokens, rightOpIdx));
-            int result = op.perform(leftOperand, rightOperand);
-            tokens = replaceSublistWithEntry(tokens, Integer.toString(result), leftOpIdx, rightOpIdx);
+
+            Operator op =  ((Operator) currentToken);
+            if (op.getPriority() != priority)
+            {
+                opIdx++;
+                continue;
+            }
+
+            try
+            {
+                int leftVal = (int) tokens.get(opIdx - 1);
+                int rightVal = (int) tokens.get(opIdx + 1);
+                tokens = replaceSublistWithEntry(tokens, op.perform(leftVal, rightVal), opIdx - 1, opIdx + 1);
+            }
+            catch (IndexOutOfBoundsException | NumberFormatException ex)
+            {
+                if (op.isUnary())
+                {
+                    int onlyVal = (int) tokens.get(opIdx + 1);
+                    tokens = replaceSublistWithEntry(tokens, op.perform(onlyVal), opIdx, opIdx + 1);
+                    opIdx++;
+                }
+                else throw new FormulaParseException("Left operand not found for binary operator " + op.symbol, ex);
+            }
         }
         return tokens;
     }
@@ -119,39 +147,65 @@ public class Calc
         return result;
     }
 
-    private List<String> remainder(List<String> tokens, int from)
+    private Operator parseOperator(String token)
     {
-        return tokens.subList(from, tokens.size());
+        return operators.get(token);
     }
 
-    private Operator parseOperator(List<String> tokens, int index)
+    private boolean isOperator(Object token)
     {
-        return operators.get(getToken(tokens, index));
-    }
-
-    private String getToken(List<String> tokens, int index)
-    {
-        return tokens.get(index);
+        return token instanceof Operator;
     }
 
     private int parseValue(String s)
     {
-        try
-        {
-            return Integer.parseInt(s);
-        }
-        catch (NumberFormatException e)
-        {
-            throw new FormulaParseException("Unable to parse value: " + s);
-        }
+        return Integer.parseInt(s);
     }
 
-    private String[] splitFormula(String formula)
+    private List<Object> splitFormula(String formula)
     {
         if (formula.trim().length() == 0)
-            return new String[] {};
+            return new ArrayList<>();
 
-        return formula.split(OPERATORS_DELIMITER);
+        List<String> tokenStrings = Arrays.asList(formula.split(OPERATORS_DELIMITER));
+        boolean expectValue = true;
+
+        List<Object> tokens = new ArrayList<>();
+
+        for (String tok : tokenStrings)
+        {
+            tok = tok.trim();
+            if (tok.isEmpty())
+                continue;
+
+            Operator op = parseOperator(tok);
+            if (expectValue)
+            {
+                if (op != null)
+                {
+                    if (op.isUnary())
+                    {
+                        tokens.add(op.unaryNeutralValue);
+                        tokens.add(op);
+                        continue;
+                    }
+                    else
+                        throw new FormulaParseException("Expected value, got operator: " + op.toString());
+                }
+                tokens.add(parseValue(tok));
+            }
+            else
+            {
+                if (op == null)
+                    throw new FormulaParseException("Expected operator, got: " + tok);
+
+                tokens.add(op);
+            }
+
+            expectValue = !expectValue;
+        }
+
+        return tokens;
     }
 
     public Calc()
@@ -188,34 +242,4 @@ public class Calc
         return 0;
     }
 
-    private abstract static class Operator
-    {
-        final String symbol;
-        final int priority;
-        final boolean unary;
-
-        Operator(String symbol, int priority, boolean unary)
-        {
-            this.symbol = symbol;
-            this.priority = priority;
-            this.unary = unary;
-        }
-
-        Operator(String symbol, int priority)
-        {
-            this(symbol, priority, false);
-        }
-
-        public abstract int perform(int leftOperand, int rightOperand);
-
-        public boolean isUnary()
-        {
-            return unary;
-        }
-
-        public int getPriority()
-        {
-            return priority;
-        }
-    }
 }

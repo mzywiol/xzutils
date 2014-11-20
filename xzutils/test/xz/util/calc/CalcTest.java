@@ -3,11 +3,9 @@ package xz.util.calc;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static junit.framework.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -133,14 +131,47 @@ public class CalcTest
     }
 
     @Test
+    public void shouldStartWithParenthesis()
+    {
+        assertEquals(4, calc.compute("(30 -18)/ 3"));
+    }
+
+    @Test
+    public void shouldStartWithInnermostParenthesis()
+    {
+        assertEquals(4, calc.compute("(6* (22 -20) )/ 3"));
+    }
+
+    @Test
+    public void shouldKeepParenthesisSeparate()
+    {
+        assertEquals(23, calc.compute("(6+ 22) -(20/ 4)"));
+    }
+
+    @Test
+    public void shouldParseNegativeIntegers()
+    {
+        assertEquals(4, calc.compute("(-6* (20 -22) )/ 3"));
+    }
+
+    @Test
     public void sandbox()
     {
         //assertTrue(Pattern.compile("a" + Pattern.quote("+")).matcher("a+").matches());
 
-        String op = "(\\+|-)";
-        String oppat = "((?<=" + op + ")|(?=" + op + "))";
-        System.out.println(Arrays.toString(" + b - ".split(oppat)));
+//        String op = "(\\+|-)";
+//        String oppat = "((?<=" + op + ")|(?=" + op + "))";
+//        System.out.println(Arrays.toString(" + b - ".split(oppat)));
 //        Pattern pat = Pattern.compile(oppat);
 //        Matcher m = pat.matcher("a+b");
+
+        Pattern p = Pattern.compile("\\([^()]*\\)");
+        String s = "(30 (22-18))/ (5-2)";
+        Matcher m = p.matcher(s);
+        m.find();
+        System.out.println(m.groupCount());
+        System.out.println(m.group(0));
+        System.out.println(s.substring(0, m.start()) + "x" + s.substring(m.end()));
+
     }
 }
