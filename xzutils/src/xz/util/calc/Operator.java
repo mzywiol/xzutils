@@ -7,27 +7,14 @@ abstract class Operator
 {
     final String symbol;
     final int priority;
-    final boolean unary;
-    final int unaryNeutralValue = 0;
-
-    Operator(String symbol, int priority, boolean unary)
-    {
-        this.symbol = symbol;
-        this.priority = priority;
-        this.unary = unary;
-    }
 
     Operator(String symbol, int priority)
     {
-        this(symbol, priority, false);
+        this.symbol = symbol;
+        this.priority = priority;
     }
 
     public abstract int perform(int... ops);
-
-    public boolean isUnary()
-    {
-        return unary;
-    }
 
     public int getPriority()
     {

@@ -148,6 +148,12 @@ public class CalcTest
         assertEquals(23, calc.compute("(6+ 22) -(20/ 4)"));
     }
 
+    @Test(expected = FormulaParseException.class)
+    public void shouldFailIfParenthesisDontMatch() throws Exception
+    {
+        calc.compute("6 - (2+3");
+    }
+
     @Test
     public void shouldParseNegativeIntegers()
     {

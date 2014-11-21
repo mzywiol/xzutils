@@ -1,11 +1,6 @@
 package xz.util.calc;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.StringJoiner;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -25,7 +20,7 @@ public class Calc
             return ops[0] + ops[1];
         }
     };
-    private final Operator SUBTRACT = new Operator("-", 1, true)
+    private final Operator SUBTRACT = new Operator("-", 1)
     {
         @Override
         public int perform(int... ops)
@@ -126,13 +121,7 @@ public class Calc
             }
             catch (IndexOutOfBoundsException | NumberFormatException ex)
             {
-                if (op.isUnary())
-                {
-                    int onlyVal = (int) tokens.get(opIdx + 1);
-                    tokens = replaceSublistWithEntry(tokens, op.perform(onlyVal), opIdx, opIdx + 1);
-                    opIdx++;
-                }
-                else throw new FormulaParseException("Left operand not found for binary operator " + op.symbol, ex);
+                throw new FormulaParseException("Operand(s) not found for binary operator: " + op.symbol, ex);
             }
         }
         return tokens;
@@ -167,45 +156,57 @@ public class Calc
         if (formula.trim().length() == 0)
             return new ArrayList<>();
 
-        List<String> tokenStrings = Arrays.asList(formula.split(OPERATORS_DELIMITER));
+        List<Object> tokens = new ArrayList<>();
         boolean expectValue = true;
 
-        List<Object> tokens = new ArrayList<>();
-
-        for (String tok : tokenStrings)
+        List<String> tokenStrings = Arrays.asList(formula.split(OPERATORS_DELIMITER));
+        Iterator<String> tokenIt = tokenStrings.iterator();
+        while (tokenIt.hasNext())
         {
-            tok = tok.trim();
+            String tok = tokenIt.next().trim();
             if (tok.isEmpty())
                 continue;
 
-            Operator op = parseOperator(tok);
             if (expectValue)
             {
-                if (op != null)
-                {
-                    if (op.isUnary())
-                    {
-                        tokens.add(op.unaryNeutralValue);
-                        tokens.add(op);
-                        continue;
-                    }
-                    else
-                        throw new FormulaParseException("Expected value, got operator: " + op.toString());
-                }
-                tokens.add(parseValue(tok));
+                tokens.add(consumeValue(tok, tokenIt));
             }
             else
             {
-                if (op == null)
-                    throw new FormulaParseException("Expected operator, got: " + tok);
-
-                tokens.add(op);
+                tokens.add(consumeOperator(tok));
             }
-
             expectValue = !expectValue;
         }
 
         return tokens;
+    }
+
+    private Operator consumeOperator(String tok)
+    {
+        Operator op = parseOperator(tok);
+        if (op == null)
+            throw new FormulaParseException("Expected operator, got: " + tok);
+
+        return op;
+    }
+
+    private Integer consumeValue(String tok, Iterator<String> tokenIt)
+    {
+        Operator op = parseOperator(tok);
+        if (op != null)
+        {
+            if ("-".equals(op.symbol))
+            {
+                if (!tokenIt.hasNext())
+                    throw new FormulaParseException("Unexpected end of formula after operator '-'");
+
+                String nextTok = tokenIt.next().trim();
+                return -consumeValue(nextTok, tokenIt);
+            }
+            else
+                throw new FormulaParseException("Expected value, got operator: " + op.toString());
+        }
+        return parseValue(tok);
     }
 
     public Calc()
