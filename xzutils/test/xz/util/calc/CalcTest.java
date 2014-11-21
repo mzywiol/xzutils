@@ -3,6 +3,7 @@ package xz.util.calc;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -148,6 +149,23 @@ public class CalcTest
         assertEquals(23, calc.compute("(6+ 22) -(20/ 4)"));
     }
 
+    @Test
+    public void souldAcceptAdditionalOperators() throws Exception {
+        calc = Calc.calcWithOperators(Operator.POWER);
+        assertEquals(83, calc.compute("2 +3^4"));
+    }
+
+    @Test
+    public void shouldAcceptCustomOperators() throws Exception {
+        calc = Calc.calcWithOperators(new Operator("&", 0) {
+            @Override //glues the integers together
+            public int perform(int... ops) {
+                return Integer.parseInt(Integer.toString(ops[0]) + Integer.toString(ops[1]));
+            }
+        });
+        assertEquals(2184, calc.compute("-5   + 7& 3*6  &5- 1 "));
+    }
+
     @Test(expected = FormulaParseException.class)
     public void shouldFailIfParenthesisDontMatch() throws Exception
     {
@@ -158,26 +176,5 @@ public class CalcTest
     public void shouldParseNegativeIntegers()
     {
         assertEquals(4, calc.compute("(-6* (20 -22) )/ 3"));
-    }
-
-    @Test
-    public void sandbox()
-    {
-        //assertTrue(Pattern.compile("a" + Pattern.quote("+")).matcher("a+").matches());
-
-//        String op = "(\\+|-)";
-//        String oppat = "((?<=" + op + ")|(?=" + op + "))";
-//        System.out.println(Arrays.toString(" + b - ".split(oppat)));
-//        Pattern pat = Pattern.compile(oppat);
-//        Matcher m = pat.matcher("a+b");
-
-        Pattern p = Pattern.compile("\\([^()]*\\)");
-        String s = "(30 (22-18))/ (5-2)";
-        Matcher m = p.matcher(s);
-        m.find();
-        System.out.println(m.groupCount());
-        System.out.println(m.group(0));
-        System.out.println(s.substring(0, m.start()) + "x" + s.substring(m.end()));
-
     }
 }

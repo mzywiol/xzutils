@@ -4,6 +4,8 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static xz.util.calc.Operator.*;
+
 public class Calc
 {
     private final Pattern INNERMOST_PARENTHESIS_PATTERN = Pattern.compile("\\([^()]*\\)");
@@ -12,38 +14,45 @@ public class Calc
     private final Map<String, Operator> operators = new HashMap<>();
     private final int MAX_PRIORITY;
     private final int MIN_PRIORITY;
-    private final Operator ADD = new Operator("+", 1)
+
+    public static Calc basicCalc()
     {
-        @Override
-        public int perform(int... ops)
-        {
-            return ops[0] + ops[1];
-        }
-    };
-    private final Operator SUBTRACT = new Operator("-", 1)
+        return new Calc();
+    }
+
+    public static Calc calcWithOperators(Operator... additionalOperators)
     {
-        @Override
-        public int perform(int... ops)
-        {
-            return ops[0] - ops[1];
-        }
-    };
-    private final Operator MULTIPLY = new Operator("*", 2)
+        List<Operator> ops = new ArrayList<>(Arrays.asList(ADD, SUBTRACT, MULTIPLY, DIVIDE));
+        ops.addAll(Arrays.asList(additionalOperators));
+        return new Calc(ops.toArray(new Operator[] {}));
+    }
+
+    public Calc(Operator... ops)
     {
-        @Override
-        public int perform(int... ops)
-        {
-            return ops[0] * ops[1];
+        for (Operator op : ops) {
+            operators.put(op.symbol, op);
         }
-    };
-    private final Operator DIVIDE = new Operator("/", 2)
+
+        MAX_PRIORITY = operators.values().stream().mapToInt(Operator::getPriority).max().getAsInt();
+        MIN_PRIORITY = operators.values().stream().mapToInt(Operator::getPriority).min().getAsInt();
+        OPERATORS_PATTERN = compileOperatorPattern();
+        OPERATORS_DELIMITER = "((?<=" + OPERATORS_PATTERN + ")|(?=" + OPERATORS_PATTERN + "))";
+    }
+
+    public Calc()
     {
-        @Override
-        public int perform(int... ops)
+        this(ADD, SUBTRACT, MULTIPLY, DIVIDE);
+    }
+
+    private String compileOperatorPattern()
+    {
+        StringJoiner operatorPatternJoiner = new StringJoiner("|", "(", ")");
+        for (String operatorSymbol : operators.keySet())
         {
-            return ops[0] / ops[1];
+            operatorPatternJoiner.add(Pattern.quote(operatorSymbol));
         }
-    };
+        return operatorPatternJoiner.toString();
+    }
 
     public int compute(String formula) throws FormulaParseException
     {
@@ -207,30 +216,6 @@ public class Calc
                 throw new FormulaParseException("Expected value, got operator: " + op.toString());
         }
         return parseValue(tok);
-    }
-
-    public Calc()
-    {
-        operators.put("+", ADD);
-        operators.put("-", SUBTRACT);
-        operators.put("*", MULTIPLY);
-        operators.put("/", DIVIDE);
-
-
-        MAX_PRIORITY = operators.values().stream().mapToInt(Operator::getPriority).max().getAsInt();
-        MIN_PRIORITY = operators.values().stream().mapToInt(Operator::getPriority).min().getAsInt();
-        OPERATORS_PATTERN = compileOperatorPattern();
-        OPERATORS_DELIMITER = "((?<=" + OPERATORS_PATTERN + ")|(?=" + OPERATORS_PATTERN + "))";
-    }
-
-    private String compileOperatorPattern()
-    {
-        StringJoiner operatorPatternJoiner = new StringJoiner("|", "(", ")");
-        for (String operatorSymbol : operators.keySet())
-        {
-            operatorPatternJoiner.add(Pattern.quote(operatorSymbol));
-        }
-        return operatorPatternJoiner.toString();
     }
 
     public static int calculate(String formula) throws IllegalArgumentException, FormulaParseException
